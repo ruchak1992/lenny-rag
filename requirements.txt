@@ -1,0 +1,6 @@
+anthropic
+chromadb
+voyageai
+tiktoken
+streamlit
+python-dotenv
