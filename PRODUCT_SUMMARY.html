@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lenny-RAG Product Summary</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --text: #1f1d1a; --muted: #6b665e; --rule: #e4e0d8;
+    --accent: #c2410c; --code-bg: #f1eee8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1917; --text: #ece9e3; --muted: #a29d94; --rule: #34312c;
+      --accent: #fb923c; --code-bg: #2a2825;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .asof { color: var(--muted); font-size: 14px; margin: 0 0 32px; }
+  h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent);
+    margin: 36px 0 10px; padding-top: 20px; border-top: 1px solid var(--rule);
+  }
+  p, li { margin: 0 0 10px; }
+  ol, ul { padding-left: 22px; margin: 0; }
+  strong { font-weight: 600; }
+  code {
+    font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: var(--code-bg); padding: 1px 5px; border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lenny-RAG — Product Summary</h1>
+  <p class="asof">As of 2026-10-28</p>
+
+  <h2>Problem</h2>
+  <p>Lenny's Podcast has about 300 episodes of top-tier product thinking, but you can't search across it. The advice is there, just impossible to pull up during a strategy review or a product diagnosis.</p>
+
+  <h2>Solution</h2>
+  <p>You ask a product question in plain English. The tool finds the most relevant transcript passages, and Claude answers from those passages alone. Each point cites its episode, and the advice is applied to Glance when the question is about Glance.</p>
+
+  <h2>How it works</h2>
+  <ol>
+    <li><strong>Ingest:</strong> Split all 299 transcripts into 13,279 overlapping chunks of about 500 tokens. Each chunk is embedded with Voyage and stored in a local ChromaDB database.</li>
+    <li><strong>Retrieve:</strong> Embed the question the same way and pull the 8 closest chunks.</li>
+    <li><strong>Generate:</strong> Claude Sonnet answers using only those chunks, with <code>[Episode]</code> citations.</li>
+    <li><strong>Use:</strong> A command-line tool for quick tests, and a simple Streamlit web app with an expandable list of sources.</li>
+  </ol>
+
+  <h2>Product decisions</h2>
+  <ul>
+    <li><strong>Accuracy over fluency:</strong> If the transcripts don't cover a question, it says so instead of guessing.</li>
+    <li><strong>Trust through citations:</strong> Every claim names its episode, so you can check it.</li>
+    <li><strong>Cost guardrails:</strong> It runs a 5-transcript test first and skips chunks that are already stored. The whole corpus costs under $1 to embed, and each query costs a few cents.</li>
+    <li><strong>A deliberately small v1:</strong> No chat memory, re-ranking, auto-ingesting new episodes, or multiple users.</li>
+  </ul>
+
+  <h2>Recent maintenance</h2>
+  <p>Voyage retired the <code>voyage-3</code> embedding model the tool was built on, so every query failed. We moved it to <code>voyage-3.5</code> and re-embedded the full corpus. That should have cost $0, since about 6.6M tokens fits inside the 200M-token free tier. The model name now lives in one shared setting, so ingestion and queries can't use different models again. The app is running, and the fix is committed on the <code>voyage-3.5-migration</code> branch but not pushed.</p>
+
+  <h2>Next</h2>
+  <ul>
+    <li><strong>Not measured yet:</strong> The PRD target that 7 out of 10 answers feel useful.</li>
+    <li><strong>Possible next features:</strong> Re-ranking or hybrid search for better results, follow-up questions, and adding new episodes automatically.</li>
+    <li><strong>Worth adding:</strong> A simple alert for when a provider retires a model, since this break went unnoticed.</li>
+  </ul>
+</main>
+</body>
+</html>
