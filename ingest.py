@@ -21,6 +21,10 @@ TRANSCRIPTS_DIR = os.getenv("TRANSCRIPTS_DIR", "./Lenny's Podcast Transcripts Ar
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_db")
 COLLECTION_NAME = "lenny_transcripts"
 
+# Ingestion and queries must use the same model, or retrieval silently returns junk.
+# voyage-3 was retired by Voyage in 2026; changing this requires a full re-ingest.
+EMBED_MODEL = "voyage-3.5"
+
 # 500-token chunks with 50-token overlap.
 # Overlap prevents a key idea from being split across chunk boundaries.
 CHUNK_SIZE = 500
@@ -106,7 +110,7 @@ def ingest(test_mode: bool = False):
         for i in range(0, len(new_chunks), BATCH):
             batch = new_chunks[i : i + BATCH]
             texts = [c["text"] for c in batch]
-            result = voyage.embed(texts, model="voyage-3", input_type="document")
+            result = voyage.embed(texts, model=EMBED_MODEL, input_type="document")
             embeddings = result.embeddings
 
             collection.add(

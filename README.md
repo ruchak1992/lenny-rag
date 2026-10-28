@@ -19,7 +19,7 @@ This was scoped like a real feature, not a script: a [PRD](./PRD.md) with a spec
 
 ## Tech stack
 
-- **Embeddings:** Voyage AI (`voyage-3`)
+- **Embeddings:** Voyage AI (`voyage-3.5`)
 - **Vector store:** ChromaDB (local, persisted to disk)
 - **Generation:** Claude API (Sonnet)
 - **UI:** Streamlit

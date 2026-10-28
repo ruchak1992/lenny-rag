@@ -14,6 +14,10 @@ load_dotenv()
 CHROMA_DIR = os.getenv("CHROMA_DIR", "./chroma_db")
 COLLECTION_NAME = "lenny_transcripts"
 
+# Ingestion and queries must use the same model, or retrieval silently returns junk.
+# voyage-3 was retired by Voyage in 2026; changing this requires a full re-ingest.
+EMBED_MODEL = "voyage-3.5"
+
 # top-8 gives enough context for a nuanced answer without blowing up the prompt
 TOP_K = 8
 
@@ -39,7 +43,7 @@ Answer format:
 def retrieve(question: str, n_results: int = TOP_K) -> list[dict]:
     """Embed the question and pull the top-k most similar chunks from ChromaDB."""
     voyage = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
-    result = voyage.embed([question], model="voyage-3", input_type="query")
+    result = voyage.embed([question], model=EMBED_MODEL, input_type="query")
     query_embedding = result.embeddings[0]
 
     client = chromadb.PersistentClient(path=CHROMA_DIR)
