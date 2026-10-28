@@ -17,6 +17,24 @@ You ask a product question in plain English. The tool finds the most relevant tr
 3. **Generate:** Claude Sonnet answers using only those chunks, with `[Episode]` citations.
 4. **Use:** A command-line tool for quick tests, and a simple Streamlit web app with an expandable list of sources.
 
+## Models and RAG techniques
+
+Answers come from Claude Sonnet 4.6 (`claude-sonnet-4-6`, up to 1,500 tokens), and embeddings from Voyage `voyage-3.5`.
+
+**Techniques used**
+
+1. **Chunking with overlap:** About 500-token chunks, each sharing 50 tokens with the next, so an idea isn't cut in half.
+2. **Semantic search:** Questions and chunks are compared by meaning (cosine similarity of embeddings), not keywords.
+3. **Separate settings for questions and documents:** Voyage embeds short questions and long passages differently.
+4. **One embedding model for both sides:** Ingestion and queries must match, so the model is a single shared setting.
+5. **Top-8 retrieval:** Enough context for a nuanced answer without filling the prompt with noise.
+6. **Grounded answers:** Claude may use only the retrieved excerpts.
+7. **Citations on every claim:** Each chunk carries its episode name.
+8. **Saying "not covered":** Claude must say so rather than guess.
+9. **Safe re-runs:** Fixed chunk IDs mean already-stored chunks are skipped.
+
+**Not used yet:** Re-ranking, hybrid keyword search (BM25), query rewriting, conversation memory, and an evaluation set. An evaluation set and re-ranking would most likely improve answers.
+
 ## Product decisions
 
 - **Accuracy over fluency:** If the transcripts don't cover a question, it says so instead of guessing.

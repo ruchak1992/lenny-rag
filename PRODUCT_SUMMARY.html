@@ -55,6 +55,22 @@
     <li><strong>Use:</strong> A command-line tool for quick tests, and a simple Streamlit web app with an expandable list of sources.</li>
   </ol>
 
+  <h2>Models and RAG techniques</h2>
+  <p>Answers come from Claude Sonnet 4.6 (<code>claude-sonnet-4-6</code>, up to 1,500 tokens), and embeddings from Voyage <code>voyage-3.5</code>.</p>
+  <p><strong>Techniques used</strong></p>
+  <ol>
+    <li><strong>Chunking with overlap:</strong> About 500-token chunks, each sharing 50 tokens with the next, so an idea isn't cut in half.</li>
+    <li><strong>Semantic search:</strong> Questions and chunks are compared by meaning (cosine similarity of embeddings), not keywords.</li>
+    <li><strong>Separate settings for questions and documents:</strong> Voyage embeds short questions and long passages differently.</li>
+    <li><strong>One embedding model for both sides:</strong> Ingestion and queries must match, so the model is a single shared setting.</li>
+    <li><strong>Top-8 retrieval:</strong> Enough context for a nuanced answer without filling the prompt with noise.</li>
+    <li><strong>Grounded answers:</strong> Claude may use only the retrieved excerpts.</li>
+    <li><strong>Citations on every claim:</strong> Each chunk carries its episode name.</li>
+    <li><strong>Saying "not covered":</strong> Claude must say so rather than guess.</li>
+    <li><strong>Safe re-runs:</strong> Fixed chunk IDs mean already-stored chunks are skipped.</li>
+  </ol>
+  <p><strong>Not used yet:</strong> Re-ranking, hybrid keyword search (BM25), query rewriting, conversation memory, and an evaluation set. An evaluation set and re-ranking would most likely improve answers.</p>
+
   <h2>Product decisions</h2>
   <ul>
     <li><strong>Accuracy over fluency:</strong> If the transcripts don't cover a question, it says so instead of guessing.</li>
