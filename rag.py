@@ -21,6 +21,11 @@ EMBED_MODEL = "voyage-3.5"
 # top-8 gives enough context for a nuanced answer without blowing up the prompt
 TOP_K = 8
 
+# Two-stage retrieval: vector search casts a wide net of 30 candidates (fast, approximate),
+# then a cross-encoder reranker reads each (question, chunk) pair and keeps the best TOP_K.
+RERANK_MODEL = "rerank-2.5"
+RERANK_CANDIDATES = 30
+
 SYSTEM_PROMPT = """\
 You are a product strategy advisor with deep knowledge of Lenny's Podcast.
 
@@ -40,8 +45,12 @@ Answer format:
 """
 
 
-def retrieve(question: str, n_results: int = TOP_K) -> list[dict]:
-    """Embed the question and pull the top-k most similar chunks from ChromaDB."""
+def retrieve(question: str, n_results: int = TOP_K, rerank: bool = True) -> list[dict]:
+    """Embed the question, pull candidates from ChromaDB, and (optionally) rerank them.
+
+    Each returned chunk carries a "score": cosine similarity without reranking,
+    reranker relevance (0-1) with it.
+    """
     voyage = voyageai.Client(api_key=os.getenv("VOYAGE_API_KEY"))
     result = voyage.embed([question], model=EMBED_MODEL, input_type="query")
     query_embedding = result.embeddings[0]
@@ -51,15 +60,26 @@ def retrieve(question: str, n_results: int = TOP_K) -> list[dict]:
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=n_results,
-        include=["documents", "metadatas"],
+        n_results=RERANK_CANDIDATES if rerank else n_results,
+        include=["documents", "metadatas", "distances"],
     )
 
     chunks = []
-    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-        chunks.append({"text": doc, "episode": meta["episode"]})
+    for doc, meta, dist in zip(
+        results["documents"][0], results["metadatas"][0], results["distances"][0]
+    ):
+        # Chroma returns cosine *distance*; 1 - distance gives similarity
+        chunks.append({"text": doc, "episode": meta["episode"], "score": 1 - dist})
 
-    return chunks
+    if not rerank:
+        return chunks
+
+    reranked = voyage.rerank(
+        question, [c["text"] for c in chunks], model=RERANK_MODEL, top_k=n_results
+    )
+    return [
+        {**chunks[r.index], "score": r.relevance_score} for r in reranked.results
+    ]
 
 
 def generate(question: str, chunks: list[dict]) -> str:
