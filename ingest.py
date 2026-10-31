@@ -30,18 +30,29 @@ EMBED_MODEL = "voyage-3.5"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 50
 
+# A final window shorter than this is folded into the previous chunk (max chunk ~550 tokens).
+# Without it, transcript tails became junk chunks like "episode." that matched any off-topic query.
+MIN_CHUNK_TOKENS = 100
+
 
 def chunk_text(text: str, slug: str) -> list[dict]:
     """Split a transcript into overlapping token-window chunks."""
     enc = tiktoken.get_encoding("cl100k_base")
     tokens = enc.encode(text)
+    if not tokens:
+        return []
 
     chunks = []
     start = 0
     idx = 0
 
-    while start < len(tokens):
-        end = min(start + CHUNK_SIZE, len(tokens))
+    while True:
+        next_start = start + CHUNK_SIZE - CHUNK_OVERLAP
+        # If the next window would be a tiny tail, absorb the rest of the transcript here
+        if len(tokens) - next_start < MIN_CHUNK_TOKENS:
+            end = len(tokens)
+        else:
+            end = start + CHUNK_SIZE
         chunk_tokens = tokens[start:end]
         chunk_str = enc.decode(chunk_tokens)
 
@@ -52,9 +63,12 @@ def chunk_text(text: str, slug: str) -> list[dict]:
             "chunk_index": idx,
         })
 
+        if end == len(tokens):
+            break
+
         idx += 1
         # Slide forward by (CHUNK_SIZE - CHUNK_OVERLAP) so adjacent chunks share 50 tokens
-        start += CHUNK_SIZE - CHUNK_OVERLAP
+        start = next_start
 
     return chunks
 
