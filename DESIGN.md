@@ -3,7 +3,7 @@
 ## Design Principles
 1. **Answer first** — Lead with the answer, not metadata or scaffolding. Citations and sources come after.
 2. **Honest over confident** — "Not covered" is a valid, intentional response — not an error state. Treat it accordingly.
-3. **Minimal chrome** — No nav, no sidebar, no clutter. One input, one output. Nothing else on screen.
+3. **Inviting front door, focused answers** — The landing page sells the tool and gets people asking (hero with the ask box, example questions, framework cards, how it works). Once a question is asked, the results view is focused: question, answer, sources, nothing else. *(Changed 2026-10-31 from "minimal chrome: one input, one output" — the bare page didn't invite exploration.)*
 4. **Scannable structure** — Answers use headers and bullets so Rucha can skim before reading in full.
 5. **Trust through citation** — Every claim is traceable. Episode names are always visible inline.
 
