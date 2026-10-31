@@ -34,12 +34,18 @@
     font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
     background: var(--code-bg); padding: 1px 5px; border-radius: 4px;
   }
+  .table-wrap { overflow-x: auto; margin: 0 0 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .better { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
 <main>
   <h1>Lenny-RAG — Product Summary</h1>
-  <p class="asof">As of 2026-10-28</p>
+  <p class="asof">As of 2026-10-31</p>
 
   <h2>Problem</h2>
   <p>Lenny's Podcast has about 300 episodes of top-tier product thinking, but you can't search across it. The advice is there, just impossible to pull up during a strategy review or a product diagnosis.</p>
@@ -49,34 +55,69 @@
 
   <h2>How it works</h2>
   <ol>
-    <li><strong>Ingest:</strong> Split all 299 transcripts into 13,279 overlapping chunks of about 500 tokens. Each chunk is embedded with Voyage and stored in a local ChromaDB database.</li>
-    <li><strong>Retrieve:</strong> Embed the question the same way and pull the 8 closest chunks.</li>
+    <li><strong>Ingest:</strong> Split all 299 transcripts into 13,204 overlapping chunks of about 500 tokens. Each chunk is embedded with Voyage and stored in a local ChromaDB database.</li>
+    <li><strong>Retrieve:</strong> Embed the question the same way, pull the 30 closest chunks, then have a reranker pick the best 8.</li>
     <li><strong>Generate:</strong> Claude Sonnet answers using only those chunks, with <code>[Episode]</code> citations.</li>
     <li><strong>Use:</strong> A command-line tool for quick tests, and a simple Streamlit web app with an expandable list of sources.</li>
   </ol>
 
   <h2>Models and RAG techniques</h2>
-  <p>Answers come from Claude Sonnet 4.6 (<code>claude-sonnet-4-6</code>, up to 1,500 tokens), and embeddings from Voyage <code>voyage-3.5</code>.</p>
+  <p>Answers come from Claude Sonnet 4.6 (<code>claude-sonnet-4-6</code>, up to 1,500 tokens), embeddings from Voyage <code>voyage-3.5</code>, and reranking from Voyage <code>rerank-2.5</code>.</p>
   <p><strong>Techniques used</strong></p>
   <ol>
-    <li><strong>Chunking with overlap:</strong> About 500-token chunks, each sharing 50 tokens with the next, so an idea isn't cut in half.</li>
+    <li><strong>Chunking with overlap:</strong> About 500-token chunks, each sharing 50 tokens with the next, so an idea isn't cut in half. A short leftover at the end of a transcript is folded into the chunk before it, so no chunk is under 100 tokens.</li>
     <li><strong>Semantic search:</strong> Questions and chunks are compared by meaning (cosine similarity of embeddings), not keywords.</li>
     <li><strong>Separate settings for questions and documents:</strong> Voyage embeds short questions and long passages differently.</li>
     <li><strong>One embedding model for both sides:</strong> Ingestion and queries must match, so the model is a single shared setting.</li>
-    <li><strong>Top-8 retrieval:</strong> Enough context for a nuanced answer without filling the prompt with noise.</li>
+    <li><strong>Two-stage retrieval:</strong> A fast vector search finds 30 candidates, then a reranker reads the question and each candidate together and keeps the best 8. That's enough context for a nuanced answer without filling the prompt with noise.</li>
     <li><strong>Grounded answers:</strong> Claude may use only the retrieved excerpts.</li>
     <li><strong>Citations on every claim:</strong> Each chunk carries its episode name.</li>
     <li><strong>Saying "not covered":</strong> Claude must say so rather than guess.</li>
     <li><strong>Safe re-runs:</strong> Fixed chunk IDs mean already-stored chunks are skipped.</li>
+    <li><strong>Retrieval evaluation:</strong> A set of 40 questions with known answer episodes scores every change before it ships.</li>
   </ol>
-  <p><strong>Not used yet:</strong> Re-ranking, hybrid keyword search (BM25), query rewriting, conversation memory, and an evaluation set. An evaluation set and re-ranking would most likely improve answers.</p>
+  <p><strong>Not used yet:</strong> Hybrid keyword search (BM25), contextual chunk headers, speaker-turn chunking, query rewriting, and conversation memory.</p>
 
   <h2>Product decisions</h2>
   <ul>
     <li><strong>Accuracy over fluency:</strong> If the transcripts don't cover a question, it says so instead of guessing.</li>
     <li><strong>Trust through citations:</strong> Every claim names its episode, so you can check it.</li>
     <li><strong>Cost guardrails:</strong> It runs a 5-transcript test first and skips chunks that are already stored. The whole corpus costs under $1 to embed, and each query costs a few cents.</li>
-    <li><strong>A deliberately small v1:</strong> No chat memory, re-ranking, auto-ingesting new episodes, or multiple users.</li>
+    <li><strong>A deliberately small v1:</strong> No chat memory, auto-ingesting new episodes, or multiple users.</li>
+    <li><strong>One change at a time:</strong> Each retrieval change is measured on its own, so we know which one helped.</li>
+  </ul>
+
+  <h2>Retrieval improvements (2026-10-31)</h2>
+  <p>Three changes, each made to fix a specific problem and each measured before and after. Full detail is in <code>CHANGELOG.md</code>.</p>
+
+  <p><strong>1. Reranking</strong></p>
+  <p><strong>Why:</strong> Vector search ranks chunks by how close their topic is to the question, not by whether they answer it. For "What does Shreyas Doshi say about the LNO framework?", 4 of the 8 chunks were unrelated career advice from other guests.</p>
+  <p><strong>What changed:</strong> Retrieval now pulls 30 candidates, and Voyage <code>rerank-2.5</code> scores each one against the question and keeps the best 8.</p>
+  <p><strong>Observed:</strong> On the LNO question, all 8 chunks now come from Shreyas Doshi episodes, including one that had been ranked #25. Across the 40-question test set:</p>
+  <div class="table-wrap">
+  <table>
+    <tr><th></th><th class="num">Right episode at #1</th><th class="num">In top 3</th><th class="num">In top 8</th><th class="num">MRR</th></tr>
+    <tr><td>Vector search only</td><td class="num">28/40</td><td class="num">34/40</td><td class="num">40/40</td><td class="num">0.80</td></tr>
+    <tr><td>+ reranking</td><td class="num better">33/40</td><td class="num better">39/40</td><td class="num">40/40</td><td class="num better">0.90</td></tr>
+  </table>
+  </div>
+  <p>MRR (mean reciprocal rank) is 1.0 when the right episode is always first and falls as it ranks lower. The extra cost is a fraction of a cent and a few hundred milliseconds per question.</p>
+
+  <p><strong>2. Removing junk tail chunks</strong></p>
+  <p><strong>Why:</strong> The chunker left a short scrap at the end of many transcripts. 75 of 299 episodes ended in a chunk under 100 tokens, 9 of them under 10 tokens (literally <code>"."</code> or <code>" episode."</code>). 46 of these scraps held no new text at all. Near-empty chunks look vaguely similar to everything, so for "What is the best pizza place in Goa?" the #1 result was a chunk containing only a full stop.</p>
+  <p><strong>What changed:</strong> A short leftover is now folded into the previous chunk, and the whole corpus was re-embedded into a fresh index. The old index is kept as a backup.</p>
+  <p><strong>Observed:</strong> Chunks went from 13,279 to 13,204, and none is under 100 tokens. The junk chunk no longer tops off-topic searches. Test-set scores didn't change, which is expected, because junk chunks only win when no real chunk matches.</p>
+
+  <p><strong>3. A retrieval test set</strong></p>
+  <p><strong>Why:</strong> Until now, quality was judged by eye on a few questions, so there was no way to tell whether a change helped.</p>
+  <p><strong>What changed:</strong> We added 40 questions, each tagged with the episodes that answer it (13 use the framework's name, 24 describe the idea without naming it, 3 are about Glance), and a script that scores retrieval. Every expected episode was checked against the transcript text. One false match was caught this way: a search for "DORA" matched 23 times in an episode that never discusses it.</p>
+  <p><strong>Observed:</strong> It produced the reranking numbers above. It's also too easy: every question already finds the right episode somewhere in the top 8, so it needs harder questions before it can measure the next changes.</p>
+
+  <p><strong>What we learned</strong></p>
+  <ul>
+    <li><strong>The reranker's score can't decide "not covered" by itself yet.</strong> The off-topic pizza question's best match scored 0.46, and a real Glance retention question's best scored 0.56. That's too close for a reliable cutoff, so Claude's "not covered" rule is still the safety net.</li>
+    <li><strong>Reranking fixes ranking, not missing results.</strong> If the right chunk isn't among the 30 candidates, reranking can't bring it back. The Glance retention question needs better recall, not better ordering.</li>
+    <li><strong>Any change to chunking means re-embedding everything.</strong> Chunk IDs are reused, so the old index has to be rebuilt from scratch.</li>
   </ul>
 
   <h2>Recent maintenance</h2>
@@ -85,7 +126,9 @@
   <h2>Next</h2>
   <ul>
     <li><strong>Not measured yet:</strong> The PRD target that 7 out of 10 answers feel useful.</li>
-    <li><strong>Possible next features:</strong> Re-ranking or hybrid search for better results, follow-up questions, and adding new episodes automatically.</li>
+    <li><strong>Harder test questions:</strong> Questions about details deep inside episodes and questions that need several guests, so the test set can show further gains.</li>
+    <li><strong>Next retrieval changes, measured one at a time:</strong> Add the episode name and topic to each chunk before embedding (contextual headers), then split chunks on speaker turns instead of token counts.</li>
+    <li><strong>Possible next features:</strong> Hybrid keyword search, follow-up questions, and adding new episodes automatically.</li>
     <li><strong>Worth adding:</strong> A simple alert for when a provider retires a model, since this break went unnoticed.</li>
   </ul>
 </main>
