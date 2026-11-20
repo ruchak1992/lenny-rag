@@ -45,7 +45,7 @@
 <body>
 <main>
   <h1>Lenny-RAG — Product Summary</h1>
-  <p class="asof">As of 2026-10-31</p>
+  <p class="asof">As of 2026-11-21</p>
 
   <h2>Problem</h2>
   <p>Lenny's Podcast has about 300 episodes of top-tier product thinking, but you can't search across it. The advice is there, just impossible to pull up during a strategy review or a product diagnosis.</p>
@@ -58,7 +58,7 @@
     <li><strong>Ingest:</strong> Split all 299 transcripts into 13,204 overlapping chunks of about 500 tokens. Each chunk is embedded with Voyage and stored in a local ChromaDB database.</li>
     <li><strong>Retrieve:</strong> Embed the question the same way, pull the 30 closest chunks, then have a reranker pick the best 8.</li>
     <li><strong>Generate:</strong> Claude Sonnet answers using only those chunks, with <code>[Episode]</code> citations.</li>
-    <li><strong>Use:</strong> A command-line tool for quick tests, and a simple Streamlit web app with an expandable list of sources.</li>
+    <li><strong>Use:</strong> A command-line tool for quick tests, and a Streamlit web app: a landing page with the ask box, example questions and framework cards, and a focused results view with citation pills and the sources.</li>
   </ol>
 
   <h2>Models and RAG techniques</h2>
@@ -120,8 +120,19 @@
     <li><strong>Any change to chunking means re-embedding everything.</strong> Chunk IDs are reused, so the old index has to be rebuilt from scratch.</li>
   </ul>
 
+  <h2>Interface and portfolio (2026-10-31 to 2026-11-21)</h2>
+  <p><strong>1. A landing page with the ask box built in</strong></p>
+  <p><strong>Why:</strong> The single-input page didn't look like a product or invite exploration. The design brief's "one input, one output" rule was what held it back, so it was replaced with "inviting front door, focused answers."</p>
+  <p><strong>What changed:</strong> A hero with the ask box, example questions and a sample cited answer; a stats strip; a scrolling strip of guest names; 8 clickable framework cards; a three-step "how it works." Answers open in a separate reading view with citation pills, a calm "not covered" panel, and scored sources.</p>
+  <p><strong>2. Answers generated in the background</strong></p>
+  <p><strong>Why:</strong> Streamlit keeps the previous view on screen until a run ends, so the landing page stayed visible, dimmed, during the 15&ndash;30 second wait. Clicking a card lower down also opened the answer scrolled to the bottom.</p>
+  <p><strong>What changed:</strong> Retrieval and generation run in a background thread, so the view switches to a clean progress state at once, and the page scrolls back to the top. A first attempt at this fix didn't work and was caught in browser testing.</p>
+  <p><strong>3. Portfolio screenshots instead of hosting</strong></p>
+  <p><strong>Why:</strong> Hosting publicly would let anyone spend the API keys and would serve raw transcript passages the project doesn't have rights to redistribute.</p>
+  <p><strong>What changed:</strong> The GitHub README now shows the landing page, an answer, the not-covered state, the phone layout and a 26-second demo GIF. The Sources panel is closed in every capture, so no transcript text is published.</p>
+
   <h2>Recent maintenance</h2>
-  <p>Voyage retired the <code>voyage-3</code> embedding model the tool was built on, so every query failed. We moved it to <code>voyage-3.5</code> and re-embedded the full corpus. That should have cost $0, since about 6.6M tokens fits inside the 200M-token free tier. The model name now lives in one shared setting, so ingestion and queries can't use different models again. The app is running, and the fix is committed on the <code>voyage-3.5-migration</code> branch but not pushed.</p>
+  <p>Voyage retired the <code>voyage-3</code> embedding model the tool was built on, so every query failed. We moved it to <code>voyage-3.5</code> and re-embedded the full corpus. That should have cost $0, since about 6.6M tokens fits inside the 200M-token free tier. The model name now lives in one shared setting, so ingestion and queries can't use different models again. The fix is now merged to main and pushed to GitHub with the rest of the work on this page.</p>
 
   <h2>Next</h2>
   <ul>
