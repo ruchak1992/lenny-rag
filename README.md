@@ -2,16 +2,41 @@
 
 A retrieval-augmented generation (RAG) tool that lets me ask natural-language product strategy questions against ~300 episodes of Lenny's Podcast — and get an answer grounded in what the guests actually said, with episode citations, instead of a generic LLM guess.
 
+![Landing page: ask box, example questions and a sample cited answer](docs/screenshots/hero.png)
+
+## See it in action
+
+![Demo: typing a question, the answer appearing with episode citations](docs/screenshots/demo.gif)
+
+*The wait while Claude writes the answer is sped up in this recording. [Higher-quality video](docs/screenshots/demo.mp4).*
+
+| Answer with citations | When the podcast doesn't cover it | On a phone |
+|---|---|---|
+| ![Answer view with citation pills](docs/screenshots/answer.png) | ![Calm "not covered" state for an off-topic question](docs/screenshots/not-covered.png) | ![Landing page at phone width](docs/screenshots/mobile.png) |
+
+Every claim carries its episode as a citation pill. Off-topic questions get an honest "not covered" instead of a made-up answer. [Full landing page](docs/screenshots/landing-full.png).
+
 ## The problem
 
 Lenny's Podcast has hundreds of hours of high-signal product thinking from top PMs and founders, but that knowledge is practically inaccessible day-to-day: re-listening isn't feasible, there's no search, and generic Google results don't surface episode-specific insight. The frameworks that would actually help during a strategy review or a product diagnosis go unused because there's no fast way to find them.
 
 ## How it works
 
-1. **Ingestion** (`ingest.py`) — chunks each transcript into ~500-token windows with 50-token overlap (so an idea doesn't get split mid-thought), embeds each chunk with Voyage AI, and stores it in a local ChromaDB collection. Ingestion is idempotent — it checks chunk IDs before embedding, so re-running never wastes API spend re-embedding what's already there. A `--test` flag ingests 5 transcripts first as a cost-safe dry run before committing to the full ~300.
-2. **Retrieval** (`rag.py`) — embeds the incoming question, pulls the top-8 most similar chunks from ChromaDB.
+1. **Ingestion** (`ingest.py`) — chunks each transcript into ~500-token windows with 50-token overlap (so an idea doesn't get split mid-thought), folding any short leftover at the end of a transcript into the previous chunk. Each chunk is embedded with Voyage AI and stored in a local ChromaDB collection (13,204 chunks). Ingestion is idempotent — it checks chunk IDs before embedding, so re-running never wastes API spend re-embedding what's already there. A `--test` flag ingests 5 transcripts first as a cost-safe dry run before committing to the full ~300.
+2. **Retrieval** (`rag.py`) — two stages: embeds the question and pulls the 30 most similar chunks from ChromaDB, then a Voyage reranker reads the question next to each candidate and keeps the 8 that actually answer it.
 3. **Generation** (`rag.py`) — sends the retrieved chunks to Claude with a system prompt that restricts it to answering *only* from the provided excerpts, forces inline `[Episode Name]` citations on every claim, and requires it to say plainly when the transcripts don't cover the question rather than improvise.
-4. **Interfaces** — a CLI (`query.py`) for fast iteration, and a minimal Streamlit UI (`app.py`) for actual use, with retrieved sources shown in a collapsible panel for verification.
+4. **Interfaces** — a CLI (`query.py`) for fast iteration, and a Streamlit web app (`app.py`): a landing page with the ask box, example questions and framework cards, and a focused results view with citation pills and the retrieved sources in a collapsible panel for verification.
+
+## Measuring retrieval
+
+`eval/` holds a golden set of 40 questions, each tagged with the episodes that answer it (checked against the transcript text), and a script that scores retrieval with and without reranking:
+
+| | Right episode at #1 | In top 3 | In top 8 | MRR |
+|---|---|---|---|---|
+| Vector search only | 28/40 | 34/40 | 40/40 | 0.80 |
+| + reranking | **33/40** | **39/40** | 40/40 | **0.90** |
+
+Every change is measured before it ships and recorded in the [changelog](./CHANGELOG.md), including what didn't work.
 
 ## Why this is a good example of my product work
 
@@ -20,6 +45,7 @@ This was scoped like a real feature, not a script: a [PRD](./PRD.md) with a spec
 ## Tech stack
 
 - **Embeddings:** Voyage AI (`voyage-3.5`)
+- **Reranking:** Voyage AI (`rerank-2.5`)
 - **Vector store:** ChromaDB (local, persisted to disk)
 - **Generation:** Claude API (Sonnet)
 - **UI:** Streamlit
@@ -51,3 +77,4 @@ streamlit run app.py
 - [DESIGN.md](./DESIGN.md) — UX principles, user flows, component inventory
 - [ERD.md](./ERD.md) — ChromaDB data model
 - [PROJECT_BRIEF.md](./PROJECT_BRIEF.md) — chunking strategy, retrieval config, cost estimates
+- [CHANGELOG.md](./CHANGELOG.md) — every change, why it was made, and what was measured

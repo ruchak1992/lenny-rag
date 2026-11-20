@@ -2,6 +2,28 @@
 
 What changed, why, and what we measured. Newest first.
 
+## 2026-11-21 — Clean progress view, scroll reset, portfolio screenshots
+
+**Problem 1.** While an answer was generated (~15–30s), the landing page stayed on screen, dimmed,
+under the progress message. Streamlit keeps a previous view's elements until the script run ends,
+and the slow work ran inside the run. (A first attempt — rendering every view into one
+`st.empty()` slot — didn't help, verified in the browser.)
+**Fix** (`app.py`). Asking a question now starts retrieval + generation in a background thread and
+ends the run immediately, so the old view is cleared. A fragment polls every 0.5s, shows the current
+stage, and switches to the answer when ready. Errors from the thread are shown in the UI.
+
+**Problem 2.** Clicking a framework card lower down the landing page opened the answer scrolled to
+the bottom, because Streamlit scrolls an inner container that keeps its position.
+**Fix.** The progress view scrolls that container back to the top.
+
+**Verified** in Chrome via Playwright: landing page not visible during generation; after clicking a
+card 1,052px down the page, the answer opens at scroll position 0; follow-up and back-home still work;
+no console errors.
+
+**Portfolio.** Added `docs/screenshots/` (hero, full landing page, answer, not-covered, phone, and a
+demo GIF/MP4 with the generation wait sped up) and a "See it in action" section in the README. The
+Sources panel is closed in every capture, so no raw transcript text is published.
+
 ## 2026-10-31 — Landing page + focused results view
 
 **Why.** The first redesign only restyled the single-input page; it still didn't look like a
