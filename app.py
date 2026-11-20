@@ -7,8 +7,10 @@ Usage:
 
 import html
 import re
+import threading
 
 import streamlit as st
+import streamlit.components.v1 as components
 from rag import retrieve, generate
 
 NOT_COVERED = "The transcripts don't cover this topic."
@@ -155,6 +157,7 @@ header[data-testid="stHeader"] { background: transparent; height: 0; }
 .not-covered strong { display: block; margin-bottom: 0.15rem; }
 .src-meta { color: var(--muted); font-size: 0.8rem; }
 .st-key-back button { padding-left: 0; color: var(--muted); }
+.st-key-scrolltop { display: none; }
 
 @media (max-width: 760px) {
   .st-key-hero { padding: 2rem 1.25rem; border-radius: 20px; }
@@ -322,29 +325,76 @@ def render_results():
                 st.caption(excerpt(c["text"]))
 
 
-def run_pending():
-    question = st.session_state.pending
-    st.session_state.pending = ""
+def start_job(question: str) -> dict:
+    """Run retrieval + generation in a background thread so this script run can finish right away.
+
+    Streamlit keeps the previous view on screen (dimmed) until a run ends, so doing the slow work
+    inside the run left the landing page visible behind the progress message. The thread only
+    touches this plain dict, never st.session_state, which isn't available outside the script thread.
+    """
+    job = {"question": question, "stage": "Finding the most relevant passages…", "done": False, "error": None}
+
+    def work():
+        try:
+            chunks = retrieve(question)
+            job["stage"] = f"Writing an answer from {len(chunks)} passages…"
+            job["answer"], job["chunks"] = generate(question, chunks), chunks
+        except Exception as e:  # surfaced in the UI rather than lost with the thread
+            job["error"] = f"{type(e).__name__}: {e}"
+        job["done"] = True
+
+    threading.Thread(target=work, daemon=True).start()
+    return job
+
+
+def scroll_to_top():
+    # Streamlit scrolls an inner container, which keeps the landing page's position when the view changes
+    components.html(
+        "<script>const d = window.parent.document;"
+        "(d.querySelector('[data-testid=\"stMain\"]') || d.scrollingElement).scrollTo({top: 0});</script>",
+        height=0,
+    )
+
+
+@st.fragment(run_every=0.5)
+def job_progress():
+    job = st.session_state.job
+    if job["done"]:
+        if job["error"]:
+            st.session_state.error = job["error"]
+        else:
+            st.session_state.update(question=job["question"], answer=job["answer"], chunks=job["chunks"])
+        st.session_state.job = None
+        st.rerun()
+    with st.status(job["stage"], expanded=False):
+        pass
+
+
+def render_job():
     nav()
     with st.container(key="reading"):
-        html_block(f'<p class="q-label">You asked</p><div class="q-text">{html.escape(question)}</div>')
-        with st.status("Finding the most relevant passages…") as status:
-            chunks = retrieve(question)
-            status.update(label=f"Writing an answer from {len(chunks)} passages…")
-            answer = generate(question, chunks)
-            status.update(label="Done", state="complete")
-    st.session_state.update(question=question, answer=answer, chunks=chunks)
-    st.rerun()
+        html_block(f'<p class="q-label">You asked</p><div class="q-text">{html.escape(st.session_state.job["question"])}</div>')
+        job_progress()
+    with st.container(key="scrolltop"):
+        scroll_to_top()
 
 
 st.set_page_config(page_title="Ask the guests · Lenny RAG", page_icon="🎙️", layout="wide")
 st.markdown(STYLE, unsafe_allow_html=True)
 
-for key, default in [("question", ""), ("answer", ""), ("chunks", []), ("pending", "")]:
+for key, default in [("question", ""), ("answer", ""), ("chunks", []), ("pending", ""), ("job", None), ("error", "")]:
     st.session_state.setdefault(key, default)
 
 if st.session_state.pending:
-    run_pending()
+    st.session_state.job = start_job(st.session_state.pending)
+    st.session_state.pending = ""
+
+if st.session_state.error:
+    st.error(f"Something went wrong while answering: {st.session_state.error}", icon=":material/error:")
+    st.session_state.error = ""
+
+if st.session_state.job:
+    render_job()
 elif st.session_state.question:
     render_results()
 else:
